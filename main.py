@@ -33,6 +33,8 @@ class UnaryExpression:
         match self.operator:
             case ("select", condition):
                 return select(value, condition)
+            case ("project", column_names):
+                return project(value, column_names)
 
 
 class Identifier(str):
@@ -69,6 +71,14 @@ def select(relation, condition):
             for tup in relation.tuples
             if test_condition(relation.column_names, tup, condition)
         ],
+    )
+
+
+def project(relation, column_names):
+    indices = sorted([relation.column_names.index(column) for column in column_names])
+    return Relation(
+        tuple([relation.column_names[i] for i in indices]),
+        [tuple([tup[i] for i in indices]) for tup in relation.tuples],
     )
 
 
@@ -113,9 +123,25 @@ def parse_binary_operator(tokens):
 
 
 def parse_unary_operator(tokens):
-    parse_token(tokens, "select")
-    condition = parse_binary_expression(tokens)
-    return ("select", condition)
+    try:
+        parse_token(tokens, "select")
+        condition = parse_binary_expression(tokens)
+        return ("select", condition)
+    except ParseException:
+        parse_token(tokens, "project")
+        column_names = parse_column_names(tokens)
+        return ("project", column_names)
+
+
+# TODO: is the minimum number of columns zero or one?
+def parse_column_names(tokens):
+    identifiers = [parse_identifier(tokens)]
+    while True:
+        try:
+            parse_token(tokens, ",")
+        except ParseException:
+            return identifiers
+        identifiers.append(parse_identifier(tokens))
 
 
 # TODO: keywords, operators, punctuation cannot be used as identifiers
@@ -133,6 +159,59 @@ def parse_token(tokens, token):
     raise ParseException
 
 
+KEYWORDS = [
+    "select",
+    "project",
+]
+
+
+# TODO: negative numbers
+def tokenize(input_str):
+    tokens = []
+    while len(input_str) > 0:
+        c = input_str[0]
+        if c.isalpha() or c == "_":
+            word, input_str = read_word(input_str)
+            if word in KEYWORDS:
+                tokens.append(word)
+            else:
+                tokens.append(Identifier(word))
+            continue
+        if c.isdigit():
+            number, input_str = read_number(input_str)
+            tokens.append(IntegerLiteral(int(number)))
+            continue
+        if c in ["<", ">", ","]:
+            tokens.append(c)
+            input_str = input_str[1:]
+            continue
+        if c.isspace():
+            input_str = input_str[1:]
+            continue
+        raise Exception("Unknown character")
+    return tokens
+
+
+def read_word(input_str):
+    i = 0
+    while i < len(input_str):
+        c = input_str[i]
+        if not c.isalnum() and c != "_":
+            return input_str[:i], input_str[i:]
+        i += 1
+    return input_str, ""
+
+
+def read_number(input_str):
+    i = 0
+    while i < len(input_str):
+        c = input_str[i]
+        if not c.isdigit():
+            return input_str[:i], input_str[i:]
+        i += 1
+    return input_str, ""
+
+
 # TODO: read tables as input
 global_assignments = {
     "Employees": Relation(
@@ -143,18 +222,13 @@ global_assignments = {
 
 
 def main():
-    # TODO: read queries as input
-    tokens = [
-        "select",
-        Identifier("Age"),
-        ">",
-        IntegerLiteral(30),
-        Identifier("Employees"),
-    ]
-    syntax_tree = parse_binary_expression(tokens)
-    print(global_assignments["Employees"])
-    print(syntax_tree)
-    print(syntax_tree.evaluate(global_assignments))
+    try:
+        while True:
+            tokens = tokenize(input(": "))
+            syntax_tree = parse_binary_expression(tokens)
+            print(syntax_tree.evaluate(global_assignments))
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
