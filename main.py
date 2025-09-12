@@ -45,9 +45,17 @@ class UnaryExpression:
                 return project(value, column_names)
 
 
+class EvaluationException(Exception):
+    pass
+
+
 class Identifier(str):
     def evaluate(self, assignments):
-        return assignments[self]
+        try:
+            return assignments[self]
+        except KeyError:
+            pass
+        raise EvaluationException(f"Unknown identifier '{self}'")
 
 
 class IntegerLiteral(int):
@@ -188,6 +196,34 @@ class ParseException(Exception):
     pass
 
 
+def parse_input(tokens):
+    try:
+        relation_name = parse_relation(tokens.copy())
+        return relation_name
+    except ParseException:
+        query = parse_binary_expression(tokens)
+        return query
+
+
+# TODO: error handling e.g. tuples of varying sizes are not permitted
+def parse_relation(tokens):
+    relation_name = parse_identifier(tokens)
+    parse_token(tokens, "{")
+    column_names = parse_column_names(tokens)
+
+    tuples = []
+    while True:
+        try:
+            tuples.append(parse_tuple(tokens))
+        except ParseException:
+            break
+
+    parse_token(tokens, "}")
+    relation = Relation(column_names, tuples)
+    global_assignments[relation_name] = relation
+    return relation_name
+
+
 def parse_binary_expression(tokens):
     left = parse_unary_expression(tokens)
     try:
@@ -214,7 +250,11 @@ def parse_primary_expression(tokens):
         parse_token(tokens, ")")
         return expression
     except ParseException:
+        pass
+    try:
         return parse_identifier(tokens)
+    except:
+        return parse_literal(tokens)
 
 
 def parse_binary_operator(tokens):
@@ -253,18 +293,37 @@ def parse_unary_operator(tokens):
 
 # TODO: is the minimum number of columns zero or one?
 def parse_column_names(tokens):
-    identifiers = [parse_identifier(tokens)]
+    column_names = (parse_identifier(tokens),)
     while True:
         try:
             parse_token(tokens, ",")
         except ParseException:
-            return identifiers
-        identifiers.append(parse_identifier(tokens))
+            return column_names
+        column_names += (parse_identifier(tokens),)
 
 
-# TODO: keywords, operators, punctuation cannot be used as identifiers
+def parse_tuple(tokens):
+    tup = (parse_literal(tokens),)
+    while True:
+        try:
+            parse_token(tokens, ",")
+        except ParseException:
+            return tup
+        tup += (parse_literal(tokens),)
+
+
 def parse_identifier(tokens):
     if len(tokens) == 0:
+        raise ParseException
+    if not isinstance(tokens[0], Identifier):
+        raise ParseException
+    return tokens.pop(0)
+
+
+def parse_literal(tokens):
+    if len(tokens) == 0:
+        raise ParseException
+    if not isinstance(tokens[0], IntegerLiteral):
         raise ParseException
     return tokens.pop(0)
 
@@ -303,7 +362,7 @@ def tokenize(input_str):
             number, input_str = read_number(input_str)
             tokens.append(IntegerLiteral(int(number)))
             continue
-        if c in ["<", ">", ","]:
+        if c in ["<", ">", ",", "{", "}"]:
             tokens.append(c)
             input_str = input_str[1:]
             continue
@@ -355,8 +414,11 @@ def main():
     try:
         while True:
             tokens = tokenize(input(": "))
-            syntax_tree = parse_binary_expression(tokens)
-            print(syntax_tree.evaluate(global_assignments))
+            syntax_tree = parse_input(tokens)
+            try:
+                print(syntax_tree.evaluate(global_assignments))
+            except EvaluationException as exception:
+                print(f"Could not evaluate query due to exception: {exception}")
     except KeyboardInterrupt:
         pass
 
