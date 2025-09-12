@@ -21,6 +21,8 @@ class BinaryExpression:
                 return union(left_value, right_value)
             case "intersect":
                 return intersect(left_value, right_value)
+            case "minus":
+                return subtract(left_value, right_value)
 
 
 class UnaryExpression:
@@ -126,6 +128,16 @@ def intersect(relation_a, relation_b):
     return Relation(relation_a.column_names, tuples)
 
 
+def subtract(relation_a, relation_b):
+    if relation_a.column_names != relation_b.column_names:
+        raise ColumnNamesMismatchException
+    tuples = []
+    for tup in relation_a.tuples:
+        if not contains(relation_b.tuples, tup):
+            tuples.append(tup)
+    return Relation(relation_a.column_names, tuples)
+
+
 class ParseException(Exception):
     pass
 
@@ -171,7 +183,11 @@ def parse_binary_operator(tokens):
     try:
         return parse_token(tokens, "union")
     except ParseException:
+        pass
+    try:
         return parse_token(tokens, "intersect")
+    except ParseException:
+        return parse_token(tokens, "minus")
 
 
 def parse_unary_operator(tokens):
@@ -216,6 +232,7 @@ KEYWORDS = [
     "project",
     "union",
     "intersect",
+    "minus",
 ]
 
 
@@ -275,7 +292,7 @@ global_assignments = {
     "Employees2": Relation(
         ("Name", "Age", "Department"),
         [("Charlie", 20, "H.R."), ("Bob", 30, "Finance")],
-    )
+    ),
 }
 
 
