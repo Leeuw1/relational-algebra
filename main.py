@@ -23,6 +23,8 @@ class BinaryExpression:
                 return intersect(left_value, right_value)
             case "minus":
                 return subtract(left_value, right_value)
+            case "join":
+                return natural_join(left_value, right_value)
 
 
 class UnaryExpression:
@@ -77,6 +79,7 @@ def select(relation, condition):
     return Relation(relation.column_names, tuples)
 
 
+# TODO: replace index() with handwritten function
 def project(relation, column_names):
     indices = []
     for name in column_names:
@@ -138,6 +141,49 @@ def subtract(relation_a, relation_b):
     return Relation(relation_a.column_names, tuples)
 
 
+# NOTE: Returns None if common columns do not match
+def natural_join_tuples(tuple_a, tuple_b, common_columns):
+    indices = []
+    for i in range(len(tuple_a)):
+        indices.append(i)
+
+    for i, j in common_columns:
+        if tuple_a[i] != tuple_b[j]:
+            return None
+        indices[j] = None
+
+    joined_tuple = tuple_a
+    for i in indices:
+        if i != None:
+            joined_tuple += (tuple_b[i],)
+
+    return joined_tuple
+
+
+# TODO: replace index() with handwritten function
+def natural_join(relation_a, relation_b):
+    common_columns = []
+    for i in range(len(relation_a.column_names)):
+        try:
+            name = relation_a.column_names[i]
+            j = relation_b.column_names.index(name)
+        except ValueError:
+            continue
+        common_columns.append((i, j))
+
+    tuples = []
+    for tuple_a in relation_a.tuples:
+        for tuple_b in relation_b.tuples:
+            joined_tuple = natural_join_tuples(tuple_a, tuple_b, common_columns)
+            if joined_tuple != None:
+                tuples.append(joined_tuple)
+
+    column_names = natural_join_tuples(
+        relation_a.column_names, relation_b.column_names, common_columns
+    )
+    return Relation(column_names, tuples)
+
+
 class ParseException(Exception):
     pass
 
@@ -187,7 +233,11 @@ def parse_binary_operator(tokens):
     try:
         return parse_token(tokens, "intersect")
     except ParseException:
+        pass
+    try:
         return parse_token(tokens, "minus")
+    except ParseException:
+        return parse_token(tokens, "join")
 
 
 def parse_unary_operator(tokens):
@@ -233,6 +283,7 @@ KEYWORDS = [
     "union",
     "intersect",
     "minus",
+    "join",
 ]
 
 
@@ -292,6 +343,10 @@ global_assignments = {
     "Employees2": Relation(
         ("Name", "Age", "Department"),
         [("Charlie", 20, "H.R."), ("Bob", 30, "Finance")],
+    ),
+    "Departments": Relation(
+        ("Department", "NumberOfPeople", "Manager"),
+        [("Finance", 100, "John"), ("H.R.", 50, "Alex")],
     ),
 }
 
