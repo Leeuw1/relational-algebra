@@ -25,6 +25,8 @@ class BinaryExpression:
                 return subtract(left_value, right_value)
             case "join":
                 return natural_join(left_value, right_value)
+            case ("theta_join", condition):
+                return theta_join(left_value, right_value, condition)
 
 
 class UnaryExpression:
@@ -69,7 +71,11 @@ class Relation:
         self.tuples = tuples
 
     def __repr__(self):
-        return f"Relation{{{self.column_names} {self.tuples}}}"
+        output = " ".join(f"|{name:<16}" for name in self.column_names) + "|\n"
+        output += "+" + "-" * (len(output) - 3) + "+\n"
+        for tup in self.tuples:
+            output += " ".join(f"|{value:<16}" for value in tup) + "|\n"
+        return output[:-1]
 
 
 def select(relation, condition):
@@ -192,6 +198,27 @@ def natural_join(relation_a, relation_b):
     return Relation(column_names, tuples)
 
 
+# TODO: a and b must not have any shared column names
+def theta_join(relation_a, relation_b, condition):
+    tuples = []
+    column_names = relation_a.column_names + relation_b.column_names
+    assignments = {}
+
+    for tuple_a in relation_a.tuples:
+        for tuple_b in relation_b.tuples:
+            joined_tuple = tuple_a + tuple_b
+
+            for i in range(len(column_names)):
+                name = column_names[i]
+                value = joined_tuple[i]
+                assignments[name] = value
+
+            if condition.evaluate(assignments):
+                tuples.append(joined_tuple)
+
+    return Relation(column_names, tuples)
+
+
 class ParseException(Exception):
     pass
 
@@ -257,27 +284,25 @@ def parse_primary_expression(tokens):
         return parse_literal(tokens)
 
 
+SIMPLE_BINARY_OPERATORS = [
+    "<",
+    ">",
+    "union",
+    "intersect",
+    "minus",
+    "join",
+]
+
+
 def parse_binary_operator(tokens):
-    try:
-        return parse_token(tokens, "<")
-    except ParseException:
-        pass
-    try:
-        return parse_token(tokens, ">")
-    except ParseException:
-        pass
-    try:
-        return parse_token(tokens, "union")
-    except ParseException:
-        pass
-    try:
-        return parse_token(tokens, "intersect")
-    except ParseException:
-        pass
-    try:
-        return parse_token(tokens, "minus")
-    except ParseException:
-        return parse_token(tokens, "join")
+    for op in SIMPLE_BINARY_OPERATORS:
+        try:
+            return parse_token(tokens, op)
+        except ParseException:
+            pass
+    parse_token(tokens, "theta_join")
+    condition = parse_binary_expression(tokens)
+    return ("theta_join", condition)
 
 
 def parse_unary_operator(tokens):
@@ -314,26 +339,26 @@ def parse_tuple(tokens):
 
 def parse_identifier(tokens):
     if len(tokens) == 0:
-        raise ParseException
+        raise ParseException("Expected identifier but got end of input")
     if not isinstance(tokens[0], Identifier):
-        raise ParseException
+        raise ParseException(f"Expected identifier but got {type(tokens[0])}")
     return tokens.pop(0)
 
 
 def parse_literal(tokens):
     if len(tokens) == 0:
-        raise ParseException
+        raise ParseException("Expected integer literal but got end of input")
     if not isinstance(tokens[0], IntegerLiteral):
-        raise ParseException
+        raise ParseException(f"Expected integer literal but got {type(tokens[0])}")
     return tokens.pop(0)
 
 
 def parse_token(tokens, token):
     if len(tokens) == 0:
-        raise ParseException
-    if tokens[0] == token:
-        return tokens.pop(0)
-    raise ParseException
+        raise ParseException(f"Expected '{token}' but got end of input")
+    if tokens[0] != token:
+        raise ParseException(f"Expected '{token}' but got '{tokens[0]}'")
+    return tokens.pop(0)
 
 
 KEYWORDS = [
@@ -362,7 +387,7 @@ def tokenize(input_str):
             number, input_str = read_number(input_str)
             tokens.append(IntegerLiteral(int(number)))
             continue
-        if c in ["<", ">", ",", "{", "}"]:
+        if c in ["<", ">", ",", "{", "}", "(", ")"]:
             tokens.append(c)
             input_str = input_str[1:]
             continue
@@ -410,15 +435,24 @@ global_assignments = {
 }
 
 
+def repl():
+    while True:
+        tokens = tokenize(input(": "))
+        try:
+            syntax_tree = parse_input(tokens)
+        except ParseException as exception:
+            print(f"Could not parse query due to exception: {exception}")
+            continue
+
+        try:
+            print(syntax_tree.evaluate(global_assignments))
+        except EvaluationException as exception:
+            print(f"Could not evaluate query due to exception: {exception}")
+
+
 def main():
     try:
-        while True:
-            tokens = tokenize(input(": "))
-            syntax_tree = parse_input(tokens)
-            try:
-                print(syntax_tree.evaluate(global_assignments))
-            except EvaluationException as exception:
-                print(f"Could not evaluate query due to exception: {exception}")
+        repl()
     except KeyboardInterrupt:
         pass
 
