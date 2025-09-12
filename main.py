@@ -56,30 +56,39 @@ class Relation:
         return f"Relation{{{self.column_names} {self.tuples}}}"
 
 
-def test_condition(column_names, tup, condition):
-    assignments = dict()
-    for name, value in zip(column_names, tup):
-        assignments[name] = value
-    return condition.evaluate(assignments)
-
-
 def select(relation, condition):
-    return Relation(
-        relation.column_names,
-        [
-            tup
-            for tup in relation.tuples
-            if test_condition(relation.column_names, tup, condition)
-        ],
-    )
+    tuples = []
+    assignments = {}
+
+    for tup in relation.tuples:
+        for i in range(len(relation.column_names)):
+            name = relation.column_names[i]
+            value = tup[i]
+            assignments[name] = value
+        if condition.evaluate(assignments):
+            tuples.append(tup)
+
+    return Relation(relation.column_names, tuples)
 
 
 def project(relation, column_names):
-    indices = sorted([relation.column_names.index(column) for column in column_names])
-    return Relation(
-        tuple([relation.column_names[i] for i in indices]),
-        [tuple([tup[i] for i in indices]) for tup in relation.tuples],
-    )
+    indices = []
+    for name in column_names:
+        indices.append(relation.column_names.index(name))
+    indices.sort()
+
+    column_names_sorted = []
+    for i in indices:
+        column_names_sorted.append(relation.column_names[i])
+
+    tuples = []
+    for tup in relation.tuples:
+        new_tuple = tuple()
+        for i in indices:
+            new_tuple += (tup[i],)
+        tuples.append(new_tuple)
+
+    return Relation(column_names_sorted, tuples)
 
 
 class ParseException(Exception):
