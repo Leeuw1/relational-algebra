@@ -17,6 +17,10 @@ class BinaryExpression:
                 return left_value > right_value
             case "<":
                 return left_value < right_value
+            case "union":
+                return union(left_value, right_value)
+            case "intersect":
+                return intersect(left_value, right_value)
 
 
 class UnaryExpression:
@@ -91,6 +95,37 @@ def project(relation, column_names):
     return Relation(column_names_sorted, tuples)
 
 
+def contains(tuples, tup):
+    for t in tuples:
+        if t == tup:
+            return True
+    return False
+
+
+class ColumnNamesMismatchException(Exception):
+    pass
+
+
+def union(relation_a, relation_b):
+    if relation_a.column_names != relation_b.column_names:
+        raise ColumnNamesMismatchException
+    tuples = relation_a.tuples.copy()
+    for tup in relation_b.tuples:
+        if not contains(relation_a.tuples, tup):
+            tuples.append(tup)
+    return Relation(relation_a.column_names, tuples)
+
+
+def intersect(relation_a, relation_b):
+    if relation_a.column_names != relation_b.column_names:
+        raise ColumnNamesMismatchException
+    tuples = []
+    for tup in relation_a.tuples:
+        if contains(relation_b.tuples, tup):
+            tuples.append(tup)
+    return Relation(relation_a.column_names, tuples)
+
+
 class ParseException(Exception):
     pass
 
@@ -128,7 +163,15 @@ def parse_binary_operator(tokens):
     try:
         return parse_token(tokens, "<")
     except ParseException:
+        pass
+    try:
         return parse_token(tokens, ">")
+    except ParseException:
+        pass
+    try:
+        return parse_token(tokens, "union")
+    except ParseException:
+        return parse_token(tokens, "intersect")
 
 
 def parse_unary_operator(tokens):
@@ -171,6 +214,8 @@ def parse_token(tokens, token):
 KEYWORDS = [
     "select",
     "project",
+    "union",
+    "intersect",
 ]
 
 
@@ -226,6 +271,10 @@ global_assignments = {
     "Employees": Relation(
         ("Name", "Age", "Department"),
         [("Alice", 32, "Finance"), ("Bob", 30, "Finance")],
+    ),
+    "Employees2": Relation(
+        ("Name", "Age", "Department"),
+        [("Charlie", 20, "H.R."), ("Bob", 30, "Finance")],
     )
 }
 
