@@ -27,6 +27,18 @@ class BinaryExpression:
                 return natural_join(left_value, right_value)
             case ("theta_join", condition):
                 return theta_join(left_value, right_value, condition)
+            case ("left_join", condition):
+                return theta_join(left_value, right_value, condition, left_outer=True)
+            case ("right_join", condition):
+                return theta_join(left_value, right_value, condition, right_outer=True)
+            case ("full_join", condition):
+                return theta_join(
+                    left_value,
+                    right_value,
+                    condition,
+                    left_outer=True,
+                    right_outer=True,
+                )
 
 
 class UnaryExpression:
@@ -71,10 +83,28 @@ class Relation:
         self.tuples = tuples
 
     def __repr__(self):
-        output = " ".join(f"|{name:<16}" for name in self.column_names) + "|\n"
-        output += "+" + "-" * (len(output) - 3) + "+\n"
+        widths = [len(name) for name in self.column_names]
         for tup in self.tuples:
-            output += " ".join(f"|{value:<16}" for value in tup) + "|\n"
+            for i, value in enumerate(tup):
+                length = len(str(value))
+                if length > widths[i]:
+                    widths[i] = length
+
+        line = "".join("+" + "-" * (w + 2) for w in widths) + "+\n"
+        output = line
+        output += (
+            "".join(
+                f"| {name:<{widths[i]}} " for i, name in enumerate(self.column_names)
+            )
+            + "|\n"
+        )
+        output += line
+        for tup in self.tuples:
+            output += (
+                "".join(f"| {value:<{widths[i]}} " for i, value in enumerate(tup))
+                + "|\n"
+            )
+        output += line
         return output[:-1]
 
 
@@ -100,9 +130,9 @@ def project(relation, column_names):
         indices.append(relation.column_names.index(name))
     indices.sort()
 
-    column_names_sorted = []
+    column_names_sorted = tuple()
     for i in indices:
-        column_names_sorted.append(relation.column_names[i])
+        column_names_sorted += (relation.column_names[i],)
 
     tuples = []
     for tup in relation.tuples:
@@ -158,7 +188,7 @@ def subtract(relation_a, relation_b):
 # NOTE: Returns None if common columns do not match
 def natural_join_tuples(tuple_a, tuple_b, common_columns):
     indices = []
-    for i in range(len(tuple_a)):
+    for i in range(len(tuple_b)):
         indices.append(i)
 
     for i, j in common_columns:
@@ -199,22 +229,45 @@ def natural_join(relation_a, relation_b):
 
 
 # TODO: a and b must not have any shared column names
-def theta_join(relation_a, relation_b, condition):
+def theta_join(relation_a, relation_b, condition, left_outer=False, right_outer=False):
     tuples = []
     column_names = relation_a.column_names + relation_b.column_names
     assignments = {}
 
+    b_matches = []
+    for _ in relation_b.tuples:
+        b_matches.append(False)
+
+    if left_outer:
+        null_tuple_b = tuple()
+        for _ in range(len(relation_b.column_names)):
+            null_tuple_b += ("NULL",)
+    if right_outer:
+        null_tuple_a = tuple()
+        for _ in range(len(relation_a.column_names)):
+            null_tuple_a += ("NULL",)
+
     for tuple_a in relation_a.tuples:
-        for tuple_b in relation_b.tuples:
+        match_found = False
+        for i, tuple_b in enumerate(relation_b.tuples):
             joined_tuple = tuple_a + tuple_b
 
-            for i in range(len(column_names)):
-                name = column_names[i]
-                value = joined_tuple[i]
+            for j in range(len(column_names)):
+                name = column_names[j]
+                value = joined_tuple[j]
                 assignments[name] = value
 
             if condition.evaluate(assignments):
                 tuples.append(joined_tuple)
+                match_found = True
+                b_matches[i] = True
+        if left_outer and not match_found:
+            tuples.append(tuple_a + null_tuple_b)
+
+    if right_outer:
+        for i, tuple_b in enumerate(relation_b.tuples):
+            if not b_matches[i]:
+                tuples.append(null_tuple_a + tuple_b)
 
     return Relation(column_names, tuples)
 
@@ -294,15 +347,22 @@ SIMPLE_BINARY_OPERATORS = [
 ]
 
 
+CONDITION_BINARY_OPERATORS = [
+    "theta_join",
+    "left_join",
+    "right_join",
+    "full_join",
+]
+
+
 def parse_binary_operator(tokens):
-    for op in SIMPLE_BINARY_OPERATORS:
-        try:
-            return parse_token(tokens, op)
-        except ParseException:
-            pass
-    parse_token(tokens, "theta_join")
+    try:
+        return parse_tokens(tokens, SIMPLE_BINARY_OPERATORS)
+    except:
+        pass
+    op = parse_tokens(tokens, CONDITION_BINARY_OPERATORS)
     condition = parse_binary_expression(tokens)
-    return ("theta_join", condition)
+    return (op, condition)
 
 
 def parse_unary_operator(tokens):
@@ -353,6 +413,14 @@ def parse_literal(tokens):
     return tokens.pop(0)
 
 
+def parse_tokens(tokens, candidates):
+    if len(tokens) == 0:
+        raise ParseException(f"Expected one of {candidates} but got end of input")
+    if tokens[0] not in candidates:
+        raise ParseException(f"Expected one of {candidates} but got '{tokens[0]}'")
+    return tokens.pop(0)
+
+
 def parse_token(tokens, token):
     if len(tokens) == 0:
         raise ParseException(f"Expected '{token}' but got end of input")
@@ -368,6 +436,10 @@ KEYWORDS = [
     "intersect",
     "minus",
     "join",
+    "theta_join",
+    "left_join",
+    "right_join",
+    "full_join",
 ]
 
 
@@ -422,7 +494,7 @@ def read_number(input_str):
 global_assignments = {
     "Employees": Relation(
         ("Name", "Age", "Department"),
-        [("Alice", 32, "Finance"), ("Bob", 30, "Finance")],
+        [("Alice", 32, "Finance"), ("Bob", 30, "Finance"), ("Joe", 60, "Media")],
     ),
     "Employees2": Relation(
         ("Name", "Age", "Department"),
@@ -430,7 +502,7 @@ global_assignments = {
     ),
     "Departments": Relation(
         ("Department", "NumberOfPeople", "Manager"),
-        [("Finance", 100, "John"), ("H.R.", 50, "Alex")],
+        [("Finance", 55, "John"), ("H.R.", 40, "Alex"), ("Media", 82, "William")],
     ),
 }
 
