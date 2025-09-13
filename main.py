@@ -24,6 +24,10 @@ class BinaryExpression:
                 return left_value == right_value
             case "!=":
                 return left_value != right_value
+            case "&&":
+                return left_value and right_value
+            case "||":
+                return left_value or right_value
             case "union":
                 return union(left_value, right_value)
             case "intersect":
@@ -58,7 +62,6 @@ class UnaryExpression:
 
     def evaluate(self, assignments):
         value = self.expression.evaluate(assignments)
-        # TODO: implement all operators
         match self.operator:
             case "!":
                 return not value
@@ -171,13 +174,9 @@ def contains(tuples, tup):
     return False
 
 
-class ColumnNamesMismatchException(Exception):
-    pass
-
-
 def union(relation_a, relation_b):
     if relation_a.column_names != relation_b.column_names:
-        raise ColumnNamesMismatchException
+        raise EvaluationException("Column names do not match")
     tuples = relation_a.tuples.copy()
     for tup in relation_b.tuples:
         if not contains(relation_a.tuples, tup):
@@ -187,7 +186,7 @@ def union(relation_a, relation_b):
 
 def intersect(relation_a, relation_b):
     if relation_a.column_names != relation_b.column_names:
-        raise ColumnNamesMismatchException
+        raise EvaluationException("Column names do not match")
     tuples = []
     for tup in relation_a.tuples:
         if contains(relation_b.tuples, tup):
@@ -197,7 +196,7 @@ def intersect(relation_a, relation_b):
 
 def subtract(relation_a, relation_b):
     if relation_a.column_names != relation_b.column_names:
-        raise ColumnNamesMismatchException
+        raise EvaluationException("Column names do not match")
     tuples = []
     for tup in relation_a.tuples:
         if not contains(relation_b.tuples, tup):
@@ -363,6 +362,8 @@ SIMPLE_BINARY_OPERATORS = [
     ">=",
     "==",
     "!=",
+    "&&",
+    "||",
     "union",
     "intersect",
     "minus",
@@ -496,7 +497,7 @@ def tokenize(input_str):
             tokens.append(c)
             input_str = input_str[1:]
             continue
-        if c in [">", "<", "=", "!"]:
+        if c in [">", "<", "=", "!", "&", "|"]:
             op, input_str = read_operator(input_str)
             tokens.append(op)
             continue
@@ -534,13 +535,13 @@ def read_string(input_str):
 
 def read_operator(input_str):
     if len(input_str) > 1:
-        if input_str[:2] in [">=", "<=", "==", "!="]:
+        if input_str[:2] in [">=", "<=", "==", "!=", "&&", "||"]:
             return input_str[:2], input_str[2:]
     if input_str[:1] in [">", "<", "!"]:
         return input_str[:1], input_str[1:]
+    # TODO: raise exception
 
 
-# TODO: read tables as input
 global_assignments = {
     "Employees": Relation(
         ("Name", "Age", "Department"),
