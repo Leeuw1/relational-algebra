@@ -297,8 +297,20 @@ def natural_join(relation_a, relation_b):
     return Relation(column_names, tuples)
 
 
-# TODO: a and b must not have any shared column names
+def disjoint_column_names(names_a, names_b):
+    for name_a in names_a:
+        for name_b in names_b:
+            if name_a == name_b:
+                return False
+    return True
+
+
 def theta_join(relation_a, relation_b, condition, left_outer=False, right_outer=False):
+    if not disjoint_column_names(relation_a.column_names, relation_b.column_names):
+        raise EvaluationException(
+            "When using join with a condition the column names must be disjoint"
+        )
+
     tuples = []
     column_names = relation_a.column_names + relation_b.column_names
     assignments = {}
@@ -346,15 +358,13 @@ class ParseException(Exception):
 
 
 def parse_input(tokens):
-    try:
-        relation_name = parse_relation(tokens.copy())
-        return relation_name
-    except ParseException:
-        query = parse_binary_expression(tokens)
-        return query
+    if len(tokens) >= 2:
+        if tokens[1] == "{":
+            return parse_relation(tokens)
+    query = parse_binary_expression(tokens)
+    return query
 
 
-# TODO: error handling e.g. tuples of varying sizes are not permitted
 def parse_relation(tokens):
     relation_name = parse_identifier(tokens)
     parse_token(tokens, "{")
@@ -363,7 +373,12 @@ def parse_relation(tokens):
     tuples = []
     while True:
         try:
-            tuples.append(parse_tuple(tokens))
+            tup = parse_tuple(tokens)
+            if len(tup) != len(column_names):
+                raise Exception(
+                    f"Tuple size mismatch, expected {len(column_names)} values but got {len(tup)}"
+                )
+            tuples.append(tup)
         except ParseException:
             break
 
@@ -432,25 +447,25 @@ CONDITION_BINARY_OPERATORS = [
 
 def parse_binary_operator(tokens):
     try:
-        return parse_tokens(tokens, SIMPLE_BINARY_OPERATORS)
+        return parse_tokens(tokens, SIMPLE_BINARY_OPERATORS, can_end=True)
     except:
         pass
-    op = parse_tokens(tokens, CONDITION_BINARY_OPERATORS)
+    op = parse_tokens(tokens, CONDITION_BINARY_OPERATORS, can_end=True)
     condition = parse_binary_expression(tokens)
     return (op, condition)
 
 
 def parse_unary_operator(tokens):
     try:
-        return parse_token(tokens, "!")
+        return parse_token(tokens, "!", can_end=True)
     except ParseException:
         pass
     try:
-        parse_token(tokens, "select")
+        parse_token(tokens, "select", can_end=True)
         condition = parse_binary_expression(tokens)
         return ("select", condition)
     except ParseException:
-        parse_token(tokens, "project")
+        parse_token(tokens, "project", can_end=True)
         column_names = parse_column_names(tokens)
         return ("project", column_names)
 
@@ -478,7 +493,9 @@ def parse_tuple(tokens):
 
 def parse_identifier(tokens):
     if len(tokens) == 0:
-        raise ParseException("Expected identifier but got end of input")
+        tokens.extend(tokenize(input()))
+        if len(tokens) == 0:
+            raise ParseException("Expected identifier but got end of input")
     if not isinstance(tokens[0], Identifier):
         raise ParseException(f"Expected identifier but got {type(tokens[0])}")
     return tokens.pop(0)
@@ -486,7 +503,9 @@ def parse_identifier(tokens):
 
 def parse_literal(tokens):
     if len(tokens) == 0:
-        raise ParseException("Expected literal but got end of input")
+        tokens.extend(tokenize(input()))
+        if len(tokens) == 0:
+            raise ParseException("Expected literal but got end of input")
     if not isinstance(tokens[0], IntegerLiteral) and not isinstance(
         tokens[0], StringLiteral
     ):
@@ -494,17 +513,25 @@ def parse_literal(tokens):
     return tokens.pop(0)
 
 
-def parse_tokens(tokens, candidates):
-    if len(tokens) == 0:
-        raise ParseException(f"Expected one of {candidates} but got end of input")
+def parse_tokens(tokens, candidates, can_end=False):
+    if can_end and len(tokens) == 0:
+        raise ParseException
+    if not can_end and len(tokens) == 0:
+        tokens.extend(tokenize(input()))
+        if len(tokens) == 0:
+            raise ParseException(f"Expected one of {candidates} but got end of input")
     if tokens[0] not in candidates:
         raise ParseException(f"Expected one of {candidates} but got '{tokens[0]}'")
     return tokens.pop(0)
 
 
-def parse_token(tokens, token):
-    if len(tokens) == 0:
-        raise ParseException(f"Expected '{token}' but got end of input")
+def parse_token(tokens, token, can_end=False):
+    if can_end and len(tokens) == 0:
+        raise ParseException
+    if not can_end and len(tokens) == 0:
+        tokens.extend(tokenize(input()))
+        if len(tokens) == 0:
+            raise ParseException(f"Expected '{token}' but got end of input")
     if tokens[0] != token:
         raise ParseException(f"Expected '{token}' but got '{tokens[0]}'")
     return tokens.pop(0)
