@@ -11,12 +11,19 @@ class BinaryExpression:
         left_value = self.left.evaluate(assignments)
         right_value = self.right.evaluate(assignments)
         # TODO: some type checking is probably required
-        # TODO: implement all operators
         match self.operator:
             case ">":
                 return left_value > right_value
             case "<":
                 return left_value < right_value
+            case ">=":
+                return left_value >= right_value
+            case "<=":
+                return left_value <= right_value
+            case "==":
+                return left_value == right_value
+            case "!=":
+                return left_value != right_value
             case "union":
                 return union(left_value, right_value)
             case "intersect":
@@ -53,6 +60,8 @@ class UnaryExpression:
         value = self.expression.evaluate(assignments)
         # TODO: implement all operators
         match self.operator:
+            case "!":
+                return not value
             case ("select", condition):
                 return select(value, condition)
             case ("project", column_names):
@@ -350,6 +359,10 @@ def parse_primary_expression(tokens):
 SIMPLE_BINARY_OPERATORS = [
     "<",
     ">",
+    "<=",
+    ">=",
+    "==",
+    "!=",
     "union",
     "intersect",
     "minus",
@@ -376,6 +389,10 @@ def parse_binary_operator(tokens):
 
 
 def parse_unary_operator(tokens):
+    try:
+        return parse_token(tokens, "!")
+    except ParseException:
+        pass
     try:
         parse_token(tokens, "select")
         condition = parse_binary_expression(tokens)
@@ -475,9 +492,13 @@ def tokenize(input_str):
             string, input_str = read_string(input_str)
             tokens.append(StringLiteral(string))
             continue
-        if c in ["<", ">", ",", "{", "}", "(", ")"]:
+        if c in [",", "{", "}", "(", ")"]:
             tokens.append(c)
             input_str = input_str[1:]
+            continue
+        if c in [">", "<", "=", "!"]:
+            op, input_str = read_operator(input_str)
+            tokens.append(op)
             continue
         if c.isspace():
             input_str = input_str[1:]
@@ -509,6 +530,14 @@ def read_number(input_str):
 def read_string(input_str):
     i = input_str[1:].index('"') + 2
     return input_str[:i], input_str[i:]
+
+
+def read_operator(input_str):
+    if len(input_str) > 1:
+        if input_str[:2] in [">=", "<=", "==", "!="]:
+            return input_str[:2], input_str[2:]
+    if input_str[:1] in [">", "<", "!"]:
+        return input_str[:1], input_str[1:]
 
 
 # TODO: read tables as input
