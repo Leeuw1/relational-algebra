@@ -116,6 +116,8 @@ class UnaryExpression:
         match self.operator:
             case "!":
                 return not value
+            case "is_null":
+                return value == "NULL"
             case ("select", condition):
                 return select(value, condition)
             case ("project", column_names):
@@ -457,7 +459,7 @@ def parse_binary_operator(tokens):
 
 def parse_unary_operator(tokens):
     try:
-        return parse_token(tokens, "!", can_end=True)
+        return parse_tokens(tokens, ["!", "is_null"], can_end=True)
     except ParseException:
         pass
     try:
@@ -548,6 +550,7 @@ KEYWORDS = [
     "left_join",
     "right_join",
     "full_join",
+    "is_null",
 ]
 
 
