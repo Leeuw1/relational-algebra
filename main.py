@@ -77,6 +77,11 @@ class IntegerLiteral(int):
         return self
 
 
+class StringLiteral(str):
+    def evaluate(self, assignments):
+        return self
+
+
 class Relation:
     def __init__(self, column_names, tuples):
         self.column_names = column_names
@@ -123,11 +128,17 @@ def select(relation, condition):
     return Relation(relation.column_names, tuples)
 
 
-# TODO: replace index() with handwritten function
+def index_of(tup, value):
+    for i, x in enumerate(tup):
+        if x == value:
+            return i
+    raise ValueError
+
+
 def project(relation, column_names):
     indices = []
     for name in column_names:
-        indices.append(relation.column_names.index(name))
+        indices.append(index_of(relation.column_names, name))
     indices.sort()
 
     column_names_sorted = tuple()
@@ -204,13 +215,12 @@ def natural_join_tuples(tuple_a, tuple_b, common_columns):
     return joined_tuple
 
 
-# TODO: replace index() with handwritten function
 def natural_join(relation_a, relation_b):
     common_columns = []
     for i in range(len(relation_a.column_names)):
         try:
             name = relation_a.column_names[i]
-            j = relation_b.column_names.index(name)
+            j = index_of(relation_b.column_names, name)
         except ValueError:
             continue
         common_columns.append((i, j))
@@ -407,9 +417,11 @@ def parse_identifier(tokens):
 
 def parse_literal(tokens):
     if len(tokens) == 0:
-        raise ParseException("Expected integer literal but got end of input")
-    if not isinstance(tokens[0], IntegerLiteral):
-        raise ParseException(f"Expected integer literal but got {type(tokens[0])}")
+        raise ParseException("Expected literal but got end of input")
+    if not isinstance(tokens[0], IntegerLiteral) and not isinstance(
+        tokens[0], StringLiteral
+    ):
+        raise ParseException(f"Expected literal but got {type(tokens[0])}")
     return tokens.pop(0)
 
 
@@ -459,6 +471,10 @@ def tokenize(input_str):
             number, input_str = read_number(input_str)
             tokens.append(IntegerLiteral(int(number)))
             continue
+        if c == '"':
+            string, input_str = read_string(input_str)
+            tokens.append(StringLiteral(string))
+            continue
         if c in ["<", ">", ",", "{", "}", "(", ")"]:
             tokens.append(c)
             input_str = input_str[1:]
@@ -488,6 +504,11 @@ def read_number(input_str):
             return input_str[:i], input_str[i:]
         i += 1
     return input_str, ""
+
+
+def read_string(input_str):
+    i = input_str[1:].index('"') + 2
+    return input_str[:i], input_str[i:]
 
 
 # TODO: read tables as input
