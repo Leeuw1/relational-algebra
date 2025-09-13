@@ -1,3 +1,44 @@
+COMPARISON_OPERATORS = [
+    ">",
+    "<",
+    ">=",
+    "<=",
+    "==",
+    "!=",
+]
+
+
+RELATIONAL_OPERATORS = [
+    "union",
+    "intersect",
+    "minus",
+    "join",
+    "theta_join",
+    "left_join",
+    "right_join",
+    "full_join",
+]
+
+
+def type_check(op, value):
+    if (
+        op in COMPARISON_OPERATORS
+        and not isinstance(value, IntegerLiteral)
+        and not isinstance(value, StringLiteral)
+    ):
+        raise EvaluationException(
+            f"Operator {op} expected integers or strings but got type: {type(value)}"
+        )
+    if op in RELATIONAL_OPERATORS and not isinstance(value, Relation):
+        raise EvaluationException(
+            f"Operator {op} expected relations but got type: {type(value)}"
+        )
+    if op in ["&&", "||"] and not isinstance(value, bool):
+        raise EvaluationException(
+            f"Operator {op} expected booleans but got type: {type(value)}"
+        )
+
+
 class BinaryExpression:
     def __init__(self, left, right, operator):
         self.left = left
@@ -10,7 +51,9 @@ class BinaryExpression:
     def evaluate(self, assignments):
         left_value = self.left.evaluate(assignments)
         right_value = self.right.evaluate(assignments)
-        # TODO: some type checking is probably required
+        if type(left_value) != type(right_value):
+            raise EvaluationException(f"Type mismatch for operands of {self.operator}")
+        type_check(self.operator, left_value)
         match self.operator:
             case ">":
                 return left_value > right_value
@@ -62,6 +105,14 @@ class UnaryExpression:
 
     def evaluate(self, assignments):
         value = self.expression.evaluate(assignments)
+        if self.operator == "!" and not isinstance(value, bool):
+            raise EvaluationException(
+                f"Operator ! expected a boolean but got type: {type(value)}"
+            )
+        if self.operator in ["select", "project"] and not isinstance(value, Relation):
+            raise EvaluationException(
+                f"Operator {self.operator} expected a relation but got type: {type(value)}"
+            )
         match self.operator:
             case "!":
                 return not value
@@ -473,6 +524,10 @@ KEYWORDS = [
 ]
 
 
+class TokenizeException(Exception):
+    pass
+
+
 # TODO: negative numbers
 def tokenize(input_str):
     tokens = []
@@ -504,7 +559,7 @@ def tokenize(input_str):
         if c.isspace():
             input_str = input_str[1:]
             continue
-        raise Exception("Unknown character")
+        raise TokenizeException(f"Invalid character '{c}'")
     return tokens
 
 
@@ -542,25 +597,65 @@ def read_operator(input_str):
     # TODO: raise exception
 
 
-global_assignments = {
-    "Employees": Relation(
-        ("Name", "Age", "Department"),
-        [("Alice", 32, "Finance"), ("Bob", 30, "Finance"), ("Joe", 60, "Media")],
-    ),
-    "Employees2": Relation(
-        ("Name", "Age", "Department"),
-        [("Charlie", 20, "H.R."), ("Bob", 30, "Finance")],
-    ),
-    "Departments": Relation(
-        ("Department", "NumberOfPeople", "Manager"),
-        [("Finance", 55, "John"), ("H.R.", 40, "Alex"), ("Media", 82, "William")],
-    ),
-}
+global_assignments = {}
 
 
 def repl():
+    parse_input(
+        tokenize(
+            """
+        Employees {
+            Name, Age, Department
+            "Alice", 32, "Finance"
+            "Bob", 30, "Finance"
+            "Joe", 60, "Media"
+        }
+    """
+        )
+    ).evaluate(global_assignments)
+    parse_input(
+        tokenize(
+            """
+        Employees2 {
+            Name, Age, Department
+            "Charlie", 20, "H.R."
+            "Bob", 30, "Finance"
+        }
+    """
+        )
+    ).evaluate(global_assignments)
+    parse_input(
+        tokenize(
+            """
+        Departments {
+            Department, NumberOfPeople, Manager
+            "Finance", 55, "John"
+            "H.R.", 40, "Alex"
+            "Media", 82, "William"
+        }
+    """
+        )
+    ).evaluate(global_assignments)
+    parse_input(
+        tokenize(
+            """
+        Departments2 {
+            DeptName, NumberOfPeople, Manager
+            "Finance", 55, "John"
+            "H.R.", 40, "Alex"
+            "Media", 82, "William"
+        }
+    """
+        )
+    ).evaluate(global_assignments)
+
     while True:
-        tokens = tokenize(input(": "))
+        try:
+            tokens = tokenize(input(": "))
+        except TokenizeException as exception:
+            print(f"Could not tokenize query due to exception: {exception}")
+            continue
+
         try:
             syntax_tree = parse_input(tokens)
         except ParseException as exception:
