@@ -370,7 +370,7 @@ def parse_input(tokens):
             return relation
     query = parse_binary_expression(tokens)
     if query == None:
-        raise ParseException("Expected an expression")
+        raise ParseException("Expected a relation or a query")
     if len(tokens) != 0:
         raise ParseException(f"Extraneous tokens after query '{query}'")
     return query
@@ -589,7 +589,6 @@ class TokenizeException(Exception):
     pass
 
 
-# TODO: negative numbers
 def tokenize(input_str):
     tokens = []
     while len(input_str) > 0:
@@ -601,10 +600,16 @@ def tokenize(input_str):
             else:
                 tokens.append(Identifier(word))
             continue
-        if c.isdigit():
+        if c.isdigit() or c == "-":
             number, input_str = read_number(input_str)
-            tokens.append(IntegerLiteral(int(number)))
-            continue
+            try:
+                tokens.append(IntegerLiteral(int(number)))
+                continue
+            except ValueError:
+                pass
+            raise TokenizeException(
+                f"Malformed integer literal starting at {number[0]}"
+            )
         if c == '"':
             string, input_str = read_string(input_str)
             tokens.append(StringLiteral(string))
@@ -625,7 +630,7 @@ def tokenize(input_str):
 
 
 def read_word(input_str):
-    i = 0
+    i = 1
     while i < len(input_str):
         c = input_str[i]
         if not c.isalnum() and c != "_":
@@ -635,7 +640,7 @@ def read_word(input_str):
 
 
 def read_number(input_str):
-    i = 0
+    i = 1
     while i < len(input_str):
         c = input_str[i]
         if not c.isdigit():
