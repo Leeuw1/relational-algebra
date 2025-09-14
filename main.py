@@ -645,8 +645,12 @@ def read_number(input_str):
 
 
 def read_string(input_str):
-    i = input_str[1:].index('"') + 2
-    return input_str[:i], input_str[i:]
+    try:
+        i = input_str[1:].index('"') + 2
+        return input_str[:i], input_str[i:]
+    except ValueError:
+        pass
+    raise TokenizeException("Unclosed string literal (expected another '\"')")
 
 
 def read_operator(input_str):
@@ -655,7 +659,7 @@ def read_operator(input_str):
             return input_str[:2], input_str[2:]
     if input_str[:1] in [">", "<", "!"]:
         return input_str[:1], input_str[1:]
-    # TODO: raise exception
+    raise TokenizeException(f"Malformed operator starting at '{input_str[0]}'")
 
 
 def add_debug_relations():
@@ -742,7 +746,7 @@ def repl():
 def main():
     try:
         repl()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         pass
 
 
