@@ -364,29 +364,40 @@ class ParseException(Exception):
 def parse_input(tokens):
     if len(tokens) >= 2:
         if tokens[1] == "{":
-            return parse_relation(tokens)
+            relation = parse_relation(tokens)
+            if len(tokens) != 0:
+                raise ParseException(f"Extraneous tokens after relation '{relation}'")
+            return relation
     query = parse_binary_expression(tokens)
+    if query == None:
+        raise ParseException("Expected an expression")
+    if len(tokens) != 0:
+        raise ParseException(f"Extraneous tokens after query '{query}'")
     return query
 
 
 def parse_relation(tokens):
     relation_name = parse_identifier(tokens)
+    if relation_name == None:
+        raise ParseException("Expected an identifier before '{'")
     parse_token(tokens, "{")
     column_names = parse_column_names(tokens)
+    if column_names == None:
+        raise ParseException("Expected column names after '{'")
 
     tuples = []
     while True:
-        try:
-            tup = parse_tuple(tokens)
-            if len(tup) != len(column_names):
-                raise Exception(
-                    f"Tuple size mismatch, expected {len(column_names)} values but got {len(tup)}"
-                )
-            tuples.append(tup)
-        except ParseException:
+        tup = parse_tuple(tokens)
+        if tup == None:
             break
+        if len(tup) != len(column_names):
+            raise ParseException(
+                f"Tuple size mismatch, expected {len(column_names)} values but got {len(tup)}"
+            )
+        tuples.append(tup)
 
-    parse_token(tokens, "}")
+    if parse_token(tokens, "}") == None:
+        raise ParseException("Expected '}' after tuples")
     relation = Relation(column_names, tuples)
     global_assignments[relation_name] = relation
     return relation_name
@@ -394,35 +405,44 @@ def parse_relation(tokens):
 
 def parse_binary_expression(tokens):
     left = parse_unary_expression(tokens)
-    try:
-        operator = parse_binary_operator(tokens)
-        right = parse_binary_expression(tokens)
-    except ParseException:
+    if left == None:
+        return None
+    operator = parse_binary_operator(tokens)
+    if operator == None:
         return left
+    right = parse_binary_expression(tokens)
+    if right == None:
+        raise ParseException(f"Expected an expression after '{operator}'")
     return BinaryExpression(left, right, operator)
 
 
 def parse_unary_expression(tokens):
-    try:
-        operator = parse_unary_operator(tokens)
-    except ParseException:
+    operator = parse_unary_operator(tokens)
+    if operator == None:
         return parse_primary_expression(tokens)
     expression = parse_unary_expression(tokens)
+    if expression == None:
+        raise ParseException(f"Expected an expression after '{operator}'")
     return UnaryExpression(expression, operator)
 
 
 def parse_primary_expression(tokens):
-    try:
-        parse_token(tokens, "(")
-        expression = parse_binary_expression(tokens)
-        parse_token(tokens, ")")
-        return expression
-    except ParseException:
-        pass
-    try:
-        return parse_identifier(tokens)
-    except:
-        return parse_literal(tokens)
+    identifier = parse_identifier(tokens)
+    if identifier != None:
+        return identifier
+
+    literal = parse_literal(tokens)
+    if literal != None:
+        return literal
+
+    if parse_token(tokens, "(") == None:
+        return None
+    expression = parse_binary_expression(tokens)
+    if expression == None:
+        raise ParseException("Expected an expression after '('")
+    if parse_token(tokens, ")") == None:
+        raise ParseException("Expected ')' after '(' <expression>")
+    return expression
 
 
 SIMPLE_BINARY_OPERATORS = [
@@ -450,58 +470,67 @@ CONDITION_BINARY_OPERATORS = [
 
 
 def parse_binary_operator(tokens):
-    try:
-        return parse_tokens(tokens, SIMPLE_BINARY_OPERATORS, can_end=True)
-    except:
-        pass
-    op = parse_tokens(tokens, CONDITION_BINARY_OPERATORS, can_end=True)
+    operator = parse_tokens(tokens, SIMPLE_BINARY_OPERATORS, can_end=True)
+    if operator != None:
+        return operator
+    operator = parse_tokens(tokens, CONDITION_BINARY_OPERATORS, can_end=True)
+    if operator == None:
+        return None
     condition = parse_binary_expression(tokens)
-    return (op, condition)
+    if condition == None:
+        raise ParseException(f"Expected condition after '{operator}'")
+    return (operator, condition)
 
 
 def parse_unary_operator(tokens):
-    try:
-        return parse_tokens(tokens, ["!", "is_null"], can_end=True)
-    except ParseException:
-        pass
-    try:
-        parse_token(tokens, "select", can_end=True)
+    operator = parse_tokens(tokens, ["!", "is_null"], can_end=True)
+    if operator != None:
+        return operator
+    if parse_token(tokens, "select", can_end=True) != None:
         condition = parse_binary_expression(tokens)
+        if condition == None:
+            raise ParseException("Expected condition after 'select'")
         return ("select", condition)
-    except ParseException:
-        parse_token(tokens, "project", can_end=True)
+    if parse_token(tokens, "project", can_end=True) != None:
         column_names = parse_column_names(tokens)
+        if column_names == None:
+            raise ParseException("Expected column names after 'project'")
         return ("project", column_names)
+    return None
 
 
 # TODO: is the minimum number of columns zero or one?
 def parse_column_names(tokens):
     column_names = (parse_identifier(tokens),)
+    if column_names[0] == None:
+        return None
     while True:
-        try:
-            parse_token(tokens, ",")
-        except ParseException:
+        if parse_token(tokens, ",") == None:
             return column_names
         column_names += (parse_identifier(tokens),)
+        if column_names[-1] == None:
+            raise ParseException("Expected a column name after ','")
 
 
 def parse_tuple(tokens):
     tup = (parse_literal(tokens),)
+    if tup[0] == None:
+        return None
     while True:
-        try:
-            parse_token(tokens, ",")
-        except ParseException:
+        if parse_token(tokens, ",") == None:
             return tup
         tup += (parse_literal(tokens),)
+        if tup[-1] == None:
+            raise ParseException("Expected a value after ','")
 
 
 def parse_identifier(tokens):
     if len(tokens) == 0:
         tokens.extend(tokenize(input()))
         if len(tokens) == 0:
-            raise ParseException("Expected identifier but got end of input")
+            return None
     if not isinstance(tokens[0], Identifier):
-        raise ParseException(f"Expected identifier but got {type(tokens[0])}")
+        return None
     return tokens.pop(0)
 
 
@@ -509,35 +538,35 @@ def parse_literal(tokens):
     if len(tokens) == 0:
         tokens.extend(tokenize(input()))
         if len(tokens) == 0:
-            raise ParseException("Expected literal but got end of input")
+            return None
     if not isinstance(tokens[0], IntegerLiteral) and not isinstance(
         tokens[0], StringLiteral
     ):
-        raise ParseException(f"Expected literal but got {type(tokens[0])}")
+        return None
     return tokens.pop(0)
 
 
 def parse_tokens(tokens, candidates, can_end=False):
     if can_end and len(tokens) == 0:
-        raise ParseException
+        return None
     if not can_end and len(tokens) == 0:
         tokens.extend(tokenize(input()))
         if len(tokens) == 0:
-            raise ParseException(f"Expected one of {candidates} but got end of input")
+            return None
     if tokens[0] not in candidates:
-        raise ParseException(f"Expected one of {candidates} but got '{tokens[0]}'")
+        return None
     return tokens.pop(0)
 
 
 def parse_token(tokens, token, can_end=False):
     if can_end and len(tokens) == 0:
-        raise ParseException
+        return None
     if not can_end and len(tokens) == 0:
         tokens.extend(tokenize(input()))
         if len(tokens) == 0:
-            raise ParseException(f"Expected '{token}' but got end of input")
+            return None
     if tokens[0] != token:
-        raise ParseException(f"Expected '{token}' but got '{tokens[0]}'")
+        return None
     return tokens.pop(0)
 
 
