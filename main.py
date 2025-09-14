@@ -1,3 +1,5 @@
+import sys
+
 COMPARISON_OPERATORS = [
     ">",
     "<",
@@ -627,10 +629,7 @@ def read_operator(input_str):
     # TODO: raise exception
 
 
-global_assignments = {}
-
-
-def repl():
+def add_debug_relations():
     parse_input(
         tokenize(
             """
@@ -679,18 +678,31 @@ def repl():
         )
     ).evaluate(global_assignments)
 
+
+global_assignments = {}
+
+
+def repl():
+    debug_mode = "-d" in sys.argv or "--debug" in sys.argv
+    if debug_mode:
+        add_debug_relations()
+
     while True:
         try:
             tokens = tokenize(input(": "))
         except TokenizeException as exception:
             print(f"Could not tokenize query due to exception: {exception}")
             continue
+        if debug_mode:
+            print(f"Tokens: {tokens}")
 
         try:
             syntax_tree = parse_input(tokens)
         except ParseException as exception:
             print(f"Could not parse query due to exception: {exception}")
             continue
+        if debug_mode:
+            print(f"Syntax tree: {syntax_tree}")
 
         try:
             print(syntax_tree.evaluate(global_assignments))
