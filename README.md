@@ -6,7 +6,7 @@
 
 # Usage
 1. Start the program in a terminal
-2. The progam runs as a REPL (read-eval-print loop)
+2. The progam runs as a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
 3. Each time you submit input, it will be evaluated and printed (e.g. entering `1 == 2` and then hitting `<Enter>` will print `False`)
 4. Each time you submit input it can be either a relation or a query
 5. Hitting `<Enter>` will submit your input only if it is a *complete* relation/query, this means that you can spread your input across multiple lines (e.g. when entering a relation with many tuples)
@@ -14,4 +14,47 @@
 7. Stop the program using `<Ctrl+C>` or `<Ctrl+D>`
 
 # Syntax
-TODO
+To view the syntax in BNF format see [grammar.bnf](grammar.bnf)
+
+## Examples
+Note: These examples will work in debug mode
+- `select Age > 30 Employees`
+- `Employees join Departments`
+- `project Name,NumberOfPeople (Employees full_join Age > NumberOfPeople Departments2)`
+
+## Notes
+Keep these in mind when using the program
+- [Operator precedence](https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages) is *not* enforced
+- Binary operators are [right associative](https://en.wikipedia.org/wiki/Operator_associativity) when no parentheses are used
+- To ensure the desired order of operations, use parentheses (e.g. `(A join B) join C` if you want `join C` to be the last operation)
+
+## Literals
+There are two types of literals, integer and string
+- Integer literals should contain only digits `0` to `9` and may optionally begin with `-` e.g. `13`, `-20`
+- String literals must use double quotes e.g. `"an example string"`
+
+## Operators
+Here is a list of all available operators
+
+| Operator | Description | Example |
+| --- | --- | --- |
+| `>` | Greater than | `1 > 2` |
+| `<` | Less than | `1 < 2` |
+| `>=` | Greater than or equal to | `1 >= 2` |
+| `<=` | Less than or equal to | `1 <= 2`|
+| `==` | Equals | `1 == 2` |
+| `!=` | Not equals | `1 != 2` |
+| `&&` | Boolean AND | `(1 == 2) && (1 != 2)` |
+| `\|\|` | Boolean OR | `(1 == 2) \|\| (1 != 2)` |
+| `!` | Boolean NOT | `!(1 == 2)` |
+| `union` | Set union | `A union B` |
+| `intersect` | Set intersect | `A intersect B` |
+| `minus` | Set minus | `A minus B` |
+| `join` | Natural join | `A join B` |
+| `theta_join` | Theta join | `A theta_join ColumnX < ColumnY B` |
+| `left_join` | Left outer join | `A left_join ColumnX < ColumnY B` |
+| `right_join` | Right outer join | `A right_join ColumnX < ColumnY B` |
+| `full_join` | Full outer join | `A full_join ColumnX < ColumnY B` |
+| `select` | Select (a.k.a. sigma) | `select ColumnX < ColumnY A` |
+| `project` | Project (a.k.a. pi) | `project ColumnX, ColumnY A` |
+| `is_null` | Check if value is NULL | `select is_null ColumnX (A full_join ColumnX < ColumnY B)` |
