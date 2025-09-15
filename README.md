@@ -76,4 +76,5 @@ Here is an example where the input is `select Age > 30 Employees`
 1. The lexer will convert the input into tokens: `['select', 'Age', '>', 30, 'Employees']`
 2. The parser will convert the tokens into a syntax tree: `UnaryExpression{('select', BinaryExpression{Age > 30}) Employees}`
 3. Evaluating the tree will lead to the function `select()` being called with `Employees` and `BinaryExpression{Age > 30}` as its arguments, and this will return a new relation containing only the employees whose age is greater than 30
+
 Bonus information: `select()` will evaluate the condition `Age > 30` for each tuple of `Employees`
