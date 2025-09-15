@@ -58,3 +58,22 @@ Here is a list of all available operators
 | `select` | Select (a.k.a. sigma) | `select ColumnX < ColumnY A` |
 | `project` | Project (a.k.a. pi) | `project ColumnX, ColumnY A` |
 | `is_null` | Check if value is NULL | `select is_null ColumnX (A full_join ColumnX < ColumnY B)` |
+
+## Relations
+Here is an example demonstrating the relation syntax: `A { C1, C2 1, 2 3, 4  }`
+- This will initialize a relation called `A`
+- `A` has two columns, `C1` and `C2`
+- `A` contains two tuples, `(1, 2)` and `(3, 4)`
+
+# How it works
+For each input the program does the following
+1. Convert input text into tokens (this is done by the lexer)
+2. Convert tokens into a syntax tree (this is done by the parser)
+3. Recursively evaluate every node of the syntax tree to get the final result
+
+## Example
+Here is an example where the input is `select Age > 30 Employees`
+1. The lexer will convert the input into tokens: `['select', 'Age', '>', 30, 'Employees']`
+2. The parser will convert the tokens into a syntax tree: `UnaryExpression{('select', BinaryExpression{Age > 30}) Employees}`
+3. Evaluating the tree will lead to the function `select()` being called with `Employees` and `BinaryExpression{Age > 30}` as its arguments, and this will return a new relation containing only the employees whose age is greater than 30
+Bonus information: `select()` will evaluate the condition `Age > 30` for each tuple of `Employees`
