@@ -1,3 +1,5 @@
+<input> ::= <query> | <relation>
+
 <query> ::= <binary-expression>
 
 <binary-expression> ::= <unary-expression> | <unary-expression> <binary-operator> <binary-expression>
@@ -6,6 +8,34 @@
 
 <primary-expression> ::= <identifier> | <literal> | ( <binary-expression> )
 
-<binary-operator> ::= > | <
+<binary-operator> ::= >
+                    | <
+                    | >=
+                    | <=
+                    | ==
+                    | !=
+                    | &&
+                    | ||
+                    | union
+                    | intersect
+                    | minus
+                    | join
+                    | theta_join <binary-expression>
+                    | left_join <binary-expression>
+                    | right_join <binary-expression>
+                    | full_join <binary-expression>
 
 <unary-operator> ::= select <binary-expression>
+                    | project <column-names>
+                    | !
+                    | is_null
+
+<column-names> ::= <identifier> | <identifier> , <column-names>
+
+<relation> ::= <identifier> { <column-names> <tuples> }
+
+<tuples> ::= NOTHING | <tuple> <tuples>
+
+<tuple> ::= <literal> | <literal> , <tuple>
+
+<literal> ::= <integer-literal> | <string-literal>
