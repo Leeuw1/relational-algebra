@@ -42,7 +42,7 @@ def run_unary_operator_tests():
 
     condition = BinaryExpression(Identifier("ID"), IntegerLiteral(50), "<")
     assert same(select(a, condition), b)
-    assert same(project(a, ["ID", "Manager"]), c)
+    assert same(project(a, ("ID", "Manager")), c)
 
 
 def run_join_tests():

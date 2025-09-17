@@ -53,6 +53,8 @@ class BinaryExpression:
     def evaluate(self, assignments):
         left_value = self.left.evaluate(assignments)
         right_value = self.right.evaluate(assignments)
+        if left_value == "NULL" or right_value == "NULL":
+            raise EvaluationException(f"Cannot use NULL in a binary expression")
         if type(left_value) != type(right_value):
             raise EvaluationException(f"Type mismatch for operands of {self.operator}")
         type_check(self.operator, left_value)
@@ -107,6 +109,8 @@ class UnaryExpression:
 
     def evaluate(self, assignments):
         value = self.expression.evaluate(assignments)
+        if self.operator != "is_null" and value == "NULL":
+            raise EvaluationException(f"Cannot use NULL with operator {self.operator}")
         if self.operator == "!" and not isinstance(value, bool):
             raise EvaluationException(
                 f"Operator ! expected a boolean but got type: {type(value)}"
@@ -206,11 +210,6 @@ def project(relation, column_names):
     indices = []
     for name in column_names:
         indices.append(index_of(relation.column_names, name))
-    indices.sort()
-
-    column_names_sorted = tuple()
-    for i in indices:
-        column_names_sorted += (relation.column_names[i],)
 
     tuples = []
     for tup in relation.tuples:
@@ -219,7 +218,7 @@ def project(relation, column_names):
             new_tuple += (tup[i],)
         tuples.append(new_tuple)
 
-    return Relation(column_names_sorted, tuples)
+    return Relation(column_names, tuples)
 
 
 def contains(tuples, tup):
@@ -396,6 +395,12 @@ def parse_relation(tokens):
             )
         tuples.append(tup)
 
+        for i, value in enumerate(tup):
+            if type(value) != type(tuples[0][i]):
+                raise ParseException(
+                    f"Type mismatch in column '{column_names[i]}' of relation '{relation_name}'"
+                )
+
     if parse_token(tokens, "}") == None:
         raise ParseException("Expected '}' after tuples")
     relation = Relation(column_names, tuples)
@@ -499,7 +504,6 @@ def parse_unary_operator(tokens):
     return None
 
 
-# TODO: is the minimum number of columns zero or one?
 def parse_column_names(tokens):
     column_names = (parse_identifier(tokens),)
     if column_names[0] == None:
