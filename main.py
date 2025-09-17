@@ -193,7 +193,12 @@ def select(relation, condition):
             name = relation.column_names[i]
             value = tup[i]
             assignments[name] = value
-        if condition.evaluate(assignments):
+
+        result = condition.evaluate(assignments)
+        if not isinstance(result, bool):
+            raise EvaluationException("Condition did not evaluate to a boolean")
+
+        if result:
             tuples.append(tup)
 
     return Relation(relation.column_names, tuples)
@@ -341,7 +346,11 @@ def theta_join(relation_a, relation_b, condition, left_outer=False, right_outer=
                 value = joined_tuple[j]
                 assignments[name] = value
 
-            if condition.evaluate(assignments):
+            result = condition.evaluate(assignments)
+            if not isinstance(result, bool):
+                raise EvaluationException("Condition did not evaluate to a boolean")
+
+            if result:
                 tuples.append(joined_tuple)
                 match_found = True
                 b_matches[i] = True
